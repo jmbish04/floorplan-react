@@ -130,8 +130,8 @@ const EditPayloadSchema = z.object({
     })
   ),
   edit_request: z.object({
-    floor_plan_ops: z.array(z.any()).default([]),
-    photo_ops: z.array(z.any()).default([]),
+    floor_plan_ops: z.array(z.object({ op: z.string() }).passthrough()).default([]),
+    photo_ops: z.array(z.object({ op: z.string() }).passthrough()).default([]),
     style_lock: z.boolean().default(true)
   })
 });
