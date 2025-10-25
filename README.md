@@ -49,7 +49,7 @@ D1 migrations live in `migrations/`. The default schema creates two tables:
 Apply migrations via Wrangler:
 
 ```bash
-wrangler d1 migrations apply <database-binding>
+wrangler d1 migrations apply <database-name>
 ```
 
 ## API summary
