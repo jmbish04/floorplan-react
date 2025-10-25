@@ -359,7 +359,7 @@ async function handleRenderAngle(url: URL, env: Env): Promise<Response> {
   const result = await env.DB.prepare(
     `SELECT id, image_url, metadata, diff_summary, created_at
      FROM image_versions
-     WHERE json_extract(metadata, '$.angle_id') = ?
+     WHERE angle_id = ?
      ORDER BY datetime(created_at) DESC
      LIMIT 1`
   )
