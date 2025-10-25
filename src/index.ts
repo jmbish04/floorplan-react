@@ -390,8 +390,8 @@ async function fetchImageBytes(env: Env, id: string): Promise<Uint8Array> {
     const buffer = await response.arrayBuffer();
     return new Uint8Array(buffer);
   } catch (error) {
-    console.warn("Falling back to empty image bytes", error);
-    return new Uint8Array();
+    console.error(`Error fetching image ${id}:`, error);
+    throw error;
   }
 }
 
