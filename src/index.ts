@@ -257,7 +257,7 @@ export default {
 
       let currentId = input.current_image_id;
 
-      for (const [index, op] of (input.edit_request.photo_ops as PhotoOp[]).entries()) {
+      for (const op of (input.edit_request.photo_ops as PhotoOp[])) {
         if (!op.op) {
           continue;
         }
