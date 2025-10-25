@@ -1,13 +1,15 @@
-name = "floorplan-photo-editor"
+name = "floorplan-react"
 main = "src/worker.ts"
 compatibility_date = "2024-10-02"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-GEMINI_MODEL = "gemini-2.5-flash-image-preview"
+GEMINI_IMAGE_MODEL = "gemini-2.5-flash-image"
+IMAGEN_MODEL = "imagen"
 SYSTEM_PROMPT = "You are an AI Orchestrator Worker that manages Gemini image generation and editing for architectural floor plans and interior/exterior photos. You handle upload, transformation, and conversational edits using Gemini's multimodal image API. All images are stored and served from Cloudflare Images, and you maintain a structured version history for every session."
 
 [[d1_databases]]
 binding = "DB"
-database_name = "floorplan-photo-editor"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_name = "floorplan-react"
+database_id = "539323c5-6e4e-4f5d-9406-7995af2199bf"
+migrations_dir = "migrations"
