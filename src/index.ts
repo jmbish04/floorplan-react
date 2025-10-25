@@ -273,15 +273,16 @@ export default {
         }
 
         const beforeId = currentId;
+        const beforeId = currentId;
         let baseBytes: Uint8Array;
+        let camera: CameraPreset;
         try {
           baseBytes = await fetchImageBytes(env, beforeId);
+          camera = findCamera(input.angles, op.angle_id);
         } catch (error) {
           changelog.push({ op: op.op, status: "blocked", reason: (error as Error).message, angle_id: op.angle_id });
           continue;
         }
-
-        const camera = findCamera(input.angles, op.angle_id);
         let resultBytes: Uint8Array;
         if (op.op === "render_angle") {
           resultBytes = await geminiGenerateView(baseBytes, camera.camera, input.base_prompt);
