@@ -153,14 +153,23 @@ const DEFAULT_DELIVERY_BASE = "https://imagedelivery.net/guDBhnmcqEWgPQ1LAcR2gg"
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
+    const requestId = crypto.randomUUID();
+    log("info", "Received request", {
+      requestId,
+      method: req.method,
+      url: req.url
+    });
+
     if (req.method === "OPTIONS") {
-      return new Response(null, {
+      const response = new Response(null, {
         headers: {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Headers": "*",
           "Access-Control-Allow-Methods": "GET,POST,OPTIONS"
         }
       });
+      log("debug", "Responded to CORS preflight", { requestId });
+      return response;
     }
 
     const url = new URL(req.url);
@@ -170,21 +179,37 @@ export default {
       try {
         body = await req.json();
       } catch (error) {
+        log("error", "Failed to parse JSON body", { requestId, error: serializeError(error) });
         return json({ error: "Invalid JSON body" }, 400);
       }
 
       const parsed = EditPayloadSchema.safeParse(body);
       if (!parsed.success) {
+        log("warn", "Payload validation failed", { requestId, issues: parsed.error.flatten() });
         return json(parsed.error.format(), 400);
       }
 
       const input = parsed.data;
+      log("info", "Validated payload", {
+        requestId,
+        clientRequestId: input.client_request_id,
+        floorPlanOps: input.edit_request.floor_plan_ops.length,
+        photoOps: input.edit_request.photo_ops.length
+      });
       const basePromptHash = await hashString(input.base_prompt);
 
       let updatedSvg: string;
       if (input.floor_plan_asset.type === "svg") {
+        log("debug", "Applying SVG floor plan operations", {
+          requestId,
+          opCount: input.edit_request.floor_plan_ops.length
+        });
         updatedSvg = await svgApply(input.floor_plan_asset.value, input.edit_request.floor_plan_ops as FloorPlanOp[]);
       } else {
+        log("debug", "Deriving SVG from Cloudflare Images asset", {
+          requestId,
+          imageId: input.floor_plan_asset.value
+        });
         updatedSvg = await svgFromImage(env, input.floor_plan_asset.value);
       }
 
@@ -238,6 +263,11 @@ export default {
       let currentId = input.current_image_id;
 
       for (const op of (input.edit_request.photo_ops as PhotoOp[])) {
+        log("debug", "Processing photo operation", {
+          requestId,
+          operation: op.op,
+          angleId: op.angle_id
+        });
         if (!op.op) {
           continue;
         }
@@ -259,6 +289,12 @@ export default {
           baseBytes = await fetchImageBytes(env, beforeId);
           camera = findCamera(input.angles, op.angle_id);
         } catch (error) {
+          log("warn", "Photo operation prerequisites unavailable", {
+            requestId,
+            operation: op.op,
+            angleId: op.angle_id,
+            error: serializeError(error)
+          });
           changelog.push({ op: op.op, status: "blocked", reason: (error as Error).message, angle_id: op.angle_id });
           continue;
         }
@@ -338,9 +374,16 @@ export default {
         }
       };
 
+      log("info", "Completed edit request", {
+        requestId,
+        newImageIds: result.result.versioning.new_image_ids.length,
+        photoCount: result.result.photos.length
+      });
+
       return json(result);
     }
 
+    log("debug", "Responding with default handler", { requestId, pathname: url.pathname });
     return new Response("ok");
   }
 };
@@ -369,7 +412,7 @@ async function fetchImageBytes(env: Env, id: string): Promise<Uint8Array> {
     const buffer = await response.arrayBuffer();
     return new Uint8Array(buffer);
   } catch (error) {
-    console.error(`Error fetching image ${id}:`, error);
+    log("error", "Error fetching image", { imageId: id, error: serializeError(error) });
     throw error;
   }
 }
@@ -456,8 +499,9 @@ async function uploadBytesToImages(env: Env, bytes: Uint8Array, metadata: Record
     const result = await transformer.output(outputOptions);
     // Materialize the response to surface binding errors eagerly.
     await result.response();
+    log("debug", "Uploaded bytes to Cloudflare Images", { id, variant: metadata["variant"], kind: metadata["kind"] });
   } catch (error) {
-    console.warn("Images binding unavailable, returning stub id", error);
+    log("warn", "Images binding unavailable, returning stub id", { id, error: serializeError(error) });
   }
 
   void metadata;
@@ -505,4 +549,44 @@ function createMetadata(options: MetadataOptions): Record<string, unknown> {
     kind,
     variant
   };
+}
+
+type LogLevel = "debug" | "info" | "warn" | "error";
+
+function log(level: LogLevel, message: string, context: Record<string, unknown> = {}): void {
+  const entry = {
+    level,
+    message,
+    timestamp: new Date().toISOString(),
+    ...context
+  };
+
+  const serialized = JSON.stringify(entry);
+  switch (level) {
+    case "debug":
+      console.debug(serialized);
+      break;
+    case "info":
+      console.info(serialized);
+      break;
+    case "warn":
+      console.warn(serialized);
+      break;
+    case "error":
+      console.error(serialized);
+      break;
+    default:
+      console.log(serialized);
+  }
+}
+
+function serializeError(error: unknown): Record<string, unknown> {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    };
+  }
+  return { message: String(error) };
 }
