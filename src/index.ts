@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ImageOutputOptions, ImagesBinding } from "@cloudflare/workers-types";
 
 const SYSTEM_PROMPT = `System prompt — FloorPlan & Photo Edit Orchestrator (Cloudflare Workers + Images + Gemini)
 
@@ -19,7 +20,7 @@ Bound Tools (assumed by the Worker and available to you)
 \t•\tenv.IMAGES (Images Binding):
 \t•\tenv.IMAGES.input(stream | bytes) → chain .transform(), .draw(), .output().response()
 \t•\tenv.IMAGES.info(stream) → { format, fileSize, width, height }
-\t•\tDirect Images API upload via account token (multipart) when you only have bytes: POST /client/v4/accounts/:id/images/v1
+\t•\tUse the Images binding for variant generation; fall back gracefully if unavailable
 \t•\tgemini functions (abstracted by the Worker):
 \t•\tgemini.edit_image({imageBytes, instruction, maskBytes?, basePrompt}) → bytes
 \t•\tgemini.generate_view({imageBytes, camera, basePrompt}) → bytes
@@ -143,29 +144,8 @@ type PhotoOp = { op?: string; angle_id?: string; instruction?: string; mask_hint
 
 type CameraPreset = EditPayload["angles"][number];
 
-interface ImageInfo {
-  format: string;
-  fileSize: number;
-  width: number;
-  height: number;
-}
-
-interface ImagesPipeline {
-  transform(options: Record<string, unknown>): ImagesPipeline;
-  draw(input: Blob | ArrayBuffer | Uint8Array | ReadableStream, options: Record<string, unknown>): ImagesPipeline;
-  output(options: Record<string, unknown>): ImagesPipeline;
-  response(): Promise<Response>;
-}
-
-interface ImagesBinding {
-  input(input: Blob | ArrayBuffer | Uint8Array | ReadableStream): ImagesPipeline;
-  info(input: Blob | ArrayBuffer | Uint8Array | ReadableStream): Promise<ImageInfo>;
-}
-
 export interface Env {
   IMAGES: ImagesBinding;
-  ACCOUNT_ID: string;
-  CF_API_TOKEN: string;
   IMAGES_DELIVERY_BASE?: string;
 }
 
@@ -272,7 +252,6 @@ export default {
           continue;
         }
 
-        const beforeId = currentId;
         const beforeId = currentId;
         let baseBytes: Uint8Array;
         let camera: CameraPreset;
@@ -460,25 +439,36 @@ async function geminiEdit(bytes: Uint8Array, _instruction: string, _mask: unknow
 }
 
 interface UploadOptions {
-  format?: string;
+  format?: ImageOutputOptions["format"];
   quality?: number;
 }
 
 async function uploadBytesToImages(env: Env, bytes: Uint8Array, metadata: Record<string, unknown>, options: UploadOptions = {}): Promise<string> {
   const id = `img_${crypto.randomUUID()}`;
   try {
-    const copy = new Uint8Array(bytes.length);
-    copy.set(bytes);
-    const blob = new Blob([copy.buffer]);
-    let pipeline = env.IMAGES.input(blob);
-    pipeline = pipeline.output({ format: options.format ?? "image/webp", quality: options.quality ?? 82 });
-    await pipeline.response();
+    const outputOptions: ImageOutputOptions = {
+      format: options.format ?? "image/webp",
+      quality: options.quality ?? 82
+    };
+    const transformer = env.IMAGES.input(uint8ArrayToStream(bytes.slice()));
+    const result = await transformer.output(outputOptions);
+    // Materialize the response to surface binding errors eagerly.
+    await result.response();
   } catch (error) {
     console.warn("Images binding unavailable, returning stub id", error);
   }
 
   void metadata;
   return id;
+}
+
+function uint8ArrayToStream(data: Uint8Array): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(data);
+      controller.close();
+    }
+  });
 }
 
 async function hashString(value: string): Promise<string> {

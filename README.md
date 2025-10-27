@@ -23,9 +23,7 @@ This project provides a Cloudflare Worker that orchestrates Gemini image editing
 3. Provide the following environment variables when running `wrangler`:
 
    - `GOOGLE_GENAI_API_KEY` – Gemini API key with access to `gemini-2.5-flash-image-preview`.
-   - `CF_IMAGES_ACCOUNT_ID` – Cloudflare Images account identifier.
-   - `CF_IMAGES_TOKEN` – API token with Images read/write permissions.
-   - `CF_IMAGES_DELIVERY_URL` – Delivery base URL, e.g. `https://imagedelivery.net/<hash>`.
+   - `IMAGES_DELIVERY_BASE` – Optional Cloudflare Images delivery base URL override, e.g. `https://imagedelivery.net/<hash>`.
 
 4. Run the Worker locally:
 
