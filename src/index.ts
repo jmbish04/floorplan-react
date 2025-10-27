@@ -447,6 +447,8 @@ async function uploadBytesToImages(env: Env, bytes: Uint8Array, metadata: Record
   const id = `img_${crypto.randomUUID()}`;
   try {
     const outputOptions: ImageOutputOptions = {
+      id,
+      metadata,
       format: options.format ?? "image/webp",
       quality: options.quality ?? 82
     };
