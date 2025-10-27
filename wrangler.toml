@@ -17,5 +17,13 @@ database_name = "floorplan-react"
 database_id = "539323c5-6e4e-4f5d-9406-7995af2199bf"
 migrations_dir = "migrations"
 
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true
+
 
 
