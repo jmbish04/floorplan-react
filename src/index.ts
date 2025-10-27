@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ImageOutputOptions, ImagesBinding } from "@cloudflare/workers-types";
+import type { Fetcher, ImageOutputOptions, ImagesBinding } from "@cloudflare/workers-types";
 
 const SYSTEM_PROMPT = `System prompt — FloorPlan & Photo Edit Orchestrator (Cloudflare Workers + Images + Gemini)
 
@@ -108,6 +108,7 @@ Output (single JSON)
 Failure Behavior
 \t•\tIf an id or angle is missing, set follow_up.required=true, list missing, and do not fabricate.
 \t•\tIf an edit is structurally unsafe, return status:"blocked" + alternative.
+
 `;
 
 const EditPayloadSchema = z.object({
@@ -146,6 +147,7 @@ type CameraPreset = EditPayload["angles"][number];
 
 export interface Env {
   IMAGES: ImagesBinding;
+  ASSETS: Fetcher;
   IMAGES_DELIVERY_BASE?: string;
 }
 
@@ -341,9 +343,14 @@ export default {
       return json(result);
     }
 
-    return new Response("ok");
+    if (req.method === "GET" || req.method === "HEAD") {
+      return env.ASSETS.fetch(req);
+    }
+
+    return new Response("Not Found", { status: 404 });
   }
 };
+
 
 function json(value: unknown, status = 200): Response {
   return new Response(JSON.stringify(value), {
